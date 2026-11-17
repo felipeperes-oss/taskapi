@@ -1,11 +1,9 @@
 package br.edu.ifsp.web.filter;
 
 import jakarta.servlet.*;
-import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
-@WebFilter("/tarefas/*")
 public class FiltroTempoDeExecucao implements Filter {
     @Override
     public void doFilter(ServletRequest req, ServletResponse resp, FilterChain chain)

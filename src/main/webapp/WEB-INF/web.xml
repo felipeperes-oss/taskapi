@@ -3,6 +3,22 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
          version="6.0">
+    <filter>
+        <filter-name>tempo</filter-name>
+        <filter-class>br.edu.ifsp.web.filter.FiltroTempoDeExecucao</filter-class>
+    </filter>
+    <filter>
+        <filter-name>autenticacao</filter-name>
+        <filter-class>br.edu.ifsp.web.filter.FiltroAutenticacao</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>tempo</filter-name>
+        <url-pattern>/tarefas/*</url-pattern>
+    </filter-mapping>
+    <filter-mapping>
+        <filter-name>autenticacao</filter-name>
+        <url-pattern>/tarefas/*</url-pattern>
+    </filter-mapping>
     <session-config>
         <session-timeout>30</session-timeout>
         <cookie-config>

@@ -9,12 +9,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SessoesListener implements HttpSessionListener {
     @Override
     public void sessionCreated(HttpSessionEvent evento) {
-        contador(evento).incrementAndGet();
+        int ativas = contador(evento).incrementAndGet();
+        System.out.println("Sessão criada: " + evento.getSession().getId() + " | sessões ativas: " + ativas);
     }
 
     @Override
     public void sessionDestroyed(HttpSessionEvent evento) {
-        contador(evento).decrementAndGet();
+        int ativas = contador(evento).decrementAndGet();
+        System.out.println("Sessão destruída: " + evento.getSession().getId() + " | sessões ativas: " + ativas);
     }
 
     private AtomicInteger contador(HttpSessionEvent evento) {

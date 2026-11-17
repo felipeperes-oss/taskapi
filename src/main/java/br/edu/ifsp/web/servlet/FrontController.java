@@ -1,7 +1,6 @@
 package br.edu.ifsp.web.servlet;
 
 import br.edu.ifsp.web.command.*;
-import br.edu.ifsp.web.model.Usuario;
 import br.edu.ifsp.web.service.DadosInvalidosException;
 import br.edu.ifsp.web.service.RecursoNaoEncontradoException;
 import br.edu.ifsp.web.service.RegraDominioException;
@@ -11,7 +10,6 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,12 +34,6 @@ public class FrontController extends HttpServlet {
     protected void service(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         try {
             req.setCharacterEncoding("UTF-8");
-            HttpSession sessao = req.getSession(false);
-            if (sessao == null || !(sessao.getAttribute("usuarioLogado") instanceof Usuario usuario)) {
-                RespostaJson.erro(resp, HttpServletResponse.SC_UNAUTHORIZED, "Usuário não autenticado.");
-                return;
-            }
-            req.setAttribute("usuario", usuario);
             String caminho = req.getPathInfo();
             boolean colecao = caminho == null || caminho.equals("/");
             if (!colecao) {

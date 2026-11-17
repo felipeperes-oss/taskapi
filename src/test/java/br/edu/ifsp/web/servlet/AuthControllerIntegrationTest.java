@@ -12,7 +12,9 @@ import com.google.gson.JsonParser;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.StringReader;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -59,6 +61,8 @@ class AuthControllerIntegrationTest {
 
     private final AtomicBoolean falharConexao = new AtomicBoolean();
     private final AtomicInteger sessoesAtivas = new AtomicInteger();
+    private final AtomicInteger tentativasConexao = new AtomicInteger();
+    private final AtomicInteger chamadasControlador = new AtomicInteger();
     private final List<Navegador> navegadores = new ArrayList<>();
     private ConnectionFactory connectionFactory;
     private Tomcat tomcat;
@@ -73,6 +77,7 @@ class AuthControllerIntegrationTest {
         connectionFactory = new ConnectionFactory(url, "sa", "") {
             @Override
             public Connection getConnection() throws SQLException {
+                tentativasConexao.incrementAndGet();
                 if (falharConexao.get()) {
                     throw new SQLException("Detalhes privados da conexão.");
                 }
@@ -109,7 +114,13 @@ class AuthControllerIntegrationTest {
         }, Set.of());
         Tomcat.addServlet(contexto, "auth", new AuthController());
         contexto.addServletMappingDecoded("/auth/*", "auth");
-        Tomcat.addServlet(contexto, "tarefas", new FrontController());
+        Tomcat.addServlet(contexto, "tarefas", new FrontController() {
+            @Override
+            protected void service(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+                chamadasControlador.incrementAndGet();
+                super.service(req, resp);
+            }
+        });
         contexto.addServletMappingDecoded("/tarefas/*", "tarefas");
         Tomcat.addServlet(contexto, "sessaoTeste", new HttpServlet() {
             @Override
@@ -130,6 +141,8 @@ class AuthControllerIntegrationTest {
             sessao.expire();
         }
         assertEquals(0, sessoesAtivas.get());
+        tentativasConexao.set(0);
+        chamadasControlador.set(0);
         navegador = novoNavegador();
     }
 
@@ -320,6 +333,104 @@ class AuthControllerIntegrationTest {
         assertFalse(resposta.body().contains("privados"));
         assertTrue(resposta.headers().allValues("Set-Cookie").isEmpty());
         assertEquals(0, sessoesAtivas.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"GET, /tarefas", "GET, /tarefas/1", "POST, /tarefas", "PUT, /tarefas/1",
+            "PATCH, /tarefas/1", "DELETE, /tarefas/1", "GET, /tarefas/invalida",
+            "GET, /tarefas/1/subrota", "POST, /tarefas/1", "OPTIONS, /tarefas"})
+    void filtroRecusaTodasAsRotasSemSessaoControladorOuConexao(String metodo, String caminho) throws Exception {
+        falharConexao.set(true);
+        HttpResponse<String> resposta = requisitar(navegador, metodo, caminho, "{\"titulo\":\"Titulo\"}");
+        verificarErro(resposta, 401);
+        assertTrue(resposta.headers().allValues("Set-Cookie").isEmpty());
+        assertTrue(navegador.cookies().getCookieStore().getCookies().isEmpty());
+        assertEquals(0, sessoesAtivas.get());
+        assertEquals(0, contexto.getManager().findSessions().length);
+        assertEquals(0, chamadasControlador.get());
+        assertEquals(0, tentativasConexao.get());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ausente", "invalido"})
+    void filtroRecusaSessaoSemUsuarioValidoSemAbrirConexao(String tipo) throws Exception {
+        requisitar(navegador, "GET", "/sessao-teste", "");
+        String id = idSessao(navegador);
+        if (tipo.equals("invalido")) {
+            contexto.getManager().findSession(id).getSession().setAttribute("usuarioLogado", "usuario-invalido");
+        }
+        falharConexao.set(true);
+        HttpResponse<String> resposta = requisitar(navegador, "GET", "/tarefas", "");
+        verificarErro(resposta, 401);
+        assertTrue(resposta.headers().allValues("Set-Cookie").isEmpty());
+        assertEquals(id, idSessao(navegador));
+        assertEquals(1, sessoesAtivas.get());
+        assertEquals(0, chamadasControlador.get());
+        assertEquals(0, tentativasConexao.get());
+    }
+
+    @Test
+    void filtroEncaminhaUsuarioAutenticadoAoControlador() throws Exception {
+        assertEquals(200, login(navegador, "ana@taskapi.test", "AnaTeste123!").statusCode());
+        tentativasConexao.set(0);
+        String saida = capturarSaida(() -> {
+            HttpResponse<String> resposta = requisitar(navegador, "GET", "/tarefas", "");
+            assertEquals(200, resposta.statusCode());
+            var tarefas = JsonParser.parseString(resposta.body()).getAsJsonArray();
+            assertEquals(5, tarefas.size());
+            tarefas.forEach(tarefa -> assertEquals(1,
+                    tarefa.getAsJsonObject().getAsJsonObject("usuario").get("id").getAsInt()));
+        });
+        assertEquals(1, chamadasControlador.get());
+        assertEquals(1, tentativasConexao.get());
+        assertEquals(1, sessoesAtivas.get());
+        assertEquals(1, saida.lines().filter(linha -> linha.startsWith("GET /tarefas levou (ms): ")).count());
+    }
+
+    @Test
+    void filtroDeTempoMedeTambemARequisicaoRecusada() throws Exception {
+        falharConexao.set(true);
+        String saida = capturarSaida(() -> verificarErro(requisitar(navegador, "GET", "/tarefas", ""), 401));
+        assertEquals(1, saida.lines().filter(linha -> linha.matches("GET /tarefas levou \\(ms\\): [0-9]+")).count());
+        assertEquals(0, chamadasControlador.get());
+        assertEquals(0, tentativasConexao.get());
+        assertEquals(0, sessoesAtivas.get());
+    }
+
+    @Test
+    void listenerRegistraCriacaoEDestruicaoComAContagemDoMe() throws Exception {
+        String saida = capturarSaida(() -> {
+            assertEquals(200, login(navegador, "ana@taskapi.test", "AnaTeste123!").statusCode());
+            HttpResponse<String> me = requisitar(navegador, "GET", "/auth/me", "");
+            assertEquals(1, json(me).get("sessoesAtivas").getAsInt());
+            String id = idSessao(navegador);
+            assertEquals(204, requisitar(navegador, "POST", "/auth/logout", "").statusCode());
+            assertEquals(0, sessoesAtivas.get());
+            assertNull(contexto.getManager().findSession(id));
+        });
+        assertEquals(1, saida.lines().filter(linha -> linha.matches("Sessão criada: \\S+ \\| sessões ativas: 1")).count());
+        assertEquals(1, saida.lines().filter(linha -> linha.matches("Sessão destruída: \\S+ \\| sessões ativas: 0")).count());
+        assertFalse(saida.contains("AnaTeste123!"));
+        assertFalse(saida.contains("pbkdf2"));
+    }
+
+    private String capturarSaida(Acao acao) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        PrintStream original = System.out;
+        try (PrintStream capturada = new PrintStream(bytes, true, StandardCharsets.UTF_8)) {
+            System.setOut(capturada);
+            try {
+                acao.executar();
+            } finally {
+                System.setOut(original);
+            }
+        }
+        return bytes.toString(StandardCharsets.UTF_8);
+    }
+
+    @FunctionalInterface
+    private interface Acao {
+        void executar() throws Exception;
     }
 
     private Navegador novoNavegador() {

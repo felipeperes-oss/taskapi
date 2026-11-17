@@ -1,6 +1,7 @@
 package br.edu.ifsp.web.servlet;
 
 import br.edu.ifsp.web.dao.ConnectionFactory;
+import br.edu.ifsp.web.filter.FiltroAutenticacao;
 import br.edu.ifsp.web.model.Tarefa;
 import br.edu.ifsp.web.model.Usuario;
 import br.edu.ifsp.web.service.TarefaService;
@@ -299,7 +300,8 @@ class FrontControllerTest {
                     }
                     return null;
                 });
-        controller.service(requisicao, httpResposta);
+        new FiltroAutenticacao().doFilter(requisicao, httpResposta,
+                (req, resp) -> controller.service((HttpServletRequest) req, (HttpServletResponse) resp));
         return resposta;
     }
 
