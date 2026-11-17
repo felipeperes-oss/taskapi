@@ -1,13 +1,18 @@
 package br.edu.ifsp.web.command;
 
-import br.edu.ifsp.web.dao.TarefaDAO;
-import br.edu.ifsp.web.model.Tarefa;
+import br.edu.ifsp.web.model.Usuario;
+import br.edu.ifsp.web.service.TarefaService;
 import com.google.gson.Gson;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.sql.Connection;
 
 public class AtualizarTarefaCommand implements Command {
+    private final TarefaService service;
+
+    public AtualizarTarefaCommand(TarefaService service) {
+        this.service = service;
+    }
+
     @Override
     public void executar(HttpServletRequest req, HttpServletResponse resp) throws Exception {
         String path = req.getPathInfo();
@@ -21,16 +26,8 @@ public class AtualizarTarefaCommand implements Command {
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Informe a tarefa em JSON.");
             return;
         }
-        Connection conexao = (Connection) req.getAttribute("conexao");
-        TarefaDAO dao = new TarefaDAO(conexao);
-        Tarefa tarefa = dao.buscar(id);
-        if (tarefa == null) {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-            return;
-        }
-        tarefa.setTitulo(dados.titulo());
-        tarefa.setDescricao(dados.descricao());
-        boolean ok = dao.atualizar(id, tarefa);
-        resp.setStatus(ok ? HttpServletResponse.SC_OK : HttpServletResponse.SC_NOT_FOUND);
+        Usuario usuario = (Usuario) req.getAttribute("usuario");
+        service.atualizar(usuario, id, dados.titulo(), dados.descricao());
+        resp.setStatus(HttpServletResponse.SC_OK);
     }
 }

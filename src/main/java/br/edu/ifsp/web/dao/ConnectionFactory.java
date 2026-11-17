@@ -5,18 +5,26 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class ConnectionFactory {
-    private static final String URL = "jdbc:mysql://localhost:3307/taskdb";
-    private static final String USER = "root";
-    private static final String PASS = "root";
+    private final String url;
+    private final String usuario;
+    private final String senha;
 
-    public Connection getConnection() {
+    public ConnectionFactory() {
+        this("jdbc:mysql://localhost:3307/taskdb", "root", "root");
+    }
+
+    public ConnectionFactory(String url, String usuario, String senha) {
+        this.url = url;
+        this.usuario = usuario;
+        this.senha = senha;
+    }
+
+    public Connection getConnection() throws SQLException {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
-            return DriverManager.getConnection(URL, USER, PASS);
-        } catch (SQLException e) {
-            throw new RuntimeException("Falha ao conectar no banco", e);
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
+            throw new SQLException("Driver do banco de dados indisponível.", e);
         }
+        return DriverManager.getConnection(url, usuario, senha);
     }
 }
