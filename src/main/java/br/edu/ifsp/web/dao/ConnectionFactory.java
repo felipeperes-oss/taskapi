@@ -10,7 +10,9 @@ public class ConnectionFactory {
     private final String senha;
 
     public ConnectionFactory() {
-        this("jdbc:mysql://localhost:3307/taskdb", "root", "root");
+        this(System.getenv().getOrDefault("TASKAPI_DB_URL", "jdbc:mysql://localhost:3307/taskdb"),
+                System.getenv().getOrDefault("TASKAPI_DB_USER", "root"),
+                System.getenv().getOrDefault("TASKAPI_DB_PASSWORD", "root"));
     }
 
     public ConnectionFactory(String url, String usuario, String senha) {
