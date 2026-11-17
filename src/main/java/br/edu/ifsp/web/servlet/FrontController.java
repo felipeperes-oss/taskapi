@@ -19,14 +19,17 @@ import java.util.Map;
 @WebServlet("/tarefas/*")
 public class FrontController extends HttpServlet {
     private final Map<String, Command> comandos = new HashMap<>();
+    private final Map<String, Command> comandosPorId = new HashMap<>();
 
     @Override
     public void init() {
         TarefaService service = (TarefaService) getServletContext().getAttribute("tarefaService");
         comandos.put("GET", new ListarTarefasCommand(service));
         comandos.put("POST", new CriarTarefaCommand(service));
-        comandos.put("PUT", new AtualizarTarefaCommand(service));
-        comandos.put("DELETE", new DeletarTarefaCommand(service));
+        comandosPorId.put("GET", new BuscarTarefaCommand(service));
+        comandosPorId.put("PUT", new AtualizarTarefaCommand(service));
+        comandosPorId.put("PATCH", new ConcluirTarefaCommand(service));
+        comandosPorId.put("DELETE", new DeletarTarefaCommand(service));
     }
 
     @Override
@@ -35,27 +38,45 @@ public class FrontController extends HttpServlet {
             req.setCharacterEncoding("UTF-8");
             HttpSession sessao = req.getSession(false);
             if (sessao == null || !(sessao.getAttribute("usuarioLogado") instanceof Usuario usuario)) {
-                resp.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Usuário não autenticado.");
+                RespostaJson.erro(resp, HttpServletResponse.SC_UNAUTHORIZED, "Usuário não autenticado.");
                 return;
             }
             req.setAttribute("usuario", usuario);
-            Command comando = comandos.get(req.getMethod());
+            String caminho = req.getPathInfo();
+            boolean colecao = caminho == null || caminho.equals("/");
+            if (!colecao) {
+                if (!caminho.matches("^/[0-9]+$")) {
+                    RespostaJson.erro(resp, HttpServletResponse.SC_BAD_REQUEST, "ID inválido.");
+                    return;
+                }
+                int id = Integer.parseInt(caminho.substring(1));
+                if (id <= 0) {
+                    RespostaJson.erro(resp, HttpServletResponse.SC_BAD_REQUEST, "ID inválido.");
+                    return;
+                }
+                req.setAttribute("tarefaId", id);
+            }
+            Map<String, Command> rotas = colecao ? comandos : comandosPorId;
+            Command comando = rotas.get(req.getMethod());
             if (comando != null) {
                 comando.executar(req, resp);
             } else {
-                resp.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+                resp.setHeader("Allow", colecao ? "GET, POST" : "GET, PUT, PATCH, DELETE");
+                RespostaJson.erro(resp, HttpServletResponse.SC_METHOD_NOT_ALLOWED, "Método não permitido.");
             }
-        } catch (JsonParseException | NumberFormatException e) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "JSON ou ID inválido.");
+        } catch (JsonParseException e) {
+            RespostaJson.erro(resp, HttpServletResponse.SC_BAD_REQUEST, "JSON inválido.");
+        } catch (NumberFormatException e) {
+            RespostaJson.erro(resp, HttpServletResponse.SC_BAD_REQUEST, "ID inválido.");
         } catch (DadosInvalidosException | IllegalArgumentException e) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            RespostaJson.erro(resp, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (RecursoNaoEncontradoException e) {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND, e.getMessage());
+            RespostaJson.erro(resp, HttpServletResponse.SC_NOT_FOUND, e.getMessage());
         } catch (RegraDominioException e) {
-            resp.sendError(HttpServletResponse.SC_CONFLICT, e.getMessage());
+            RespostaJson.erro(resp, HttpServletResponse.SC_CONFLICT, e.getMessage());
         } catch (Exception e) {
             getServletContext().log("Erro ao executar a requisição", e);
-            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            RespostaJson.erro(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Erro interno do servidor.");
         }
     }
 }

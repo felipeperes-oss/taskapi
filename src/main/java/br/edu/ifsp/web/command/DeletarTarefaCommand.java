@@ -14,12 +14,7 @@ public class DeletarTarefaCommand implements Command {
 
     @Override
     public void executar(HttpServletRequest req, HttpServletResponse resp) throws Exception {
-        String path = req.getPathInfo();
-        if (path == null || !path.matches("^/\\d+$")) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "ID inválido.");
-            return;
-        }
-        int id = Integer.parseInt(path.substring(1));
+        int id = (Integer) req.getAttribute("tarefaId");
         Usuario usuario = (Usuario) req.getAttribute("usuario");
         service.excluir(usuario, id);
         resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
