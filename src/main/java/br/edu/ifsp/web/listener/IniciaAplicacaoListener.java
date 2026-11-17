@@ -9,12 +9,14 @@ import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
 import jakarta.servlet.annotation.WebListener;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @WebListener
 public class IniciaAplicacaoListener implements ServletContextListener {
     @Override
     public void contextInitialized(ServletContextEvent e) {
         ServletContext ctx = e.getServletContext();
+        ctx.setAttribute("sessoesAtivas", new AtomicInteger());
         ConnectionFactory connectionFactory = new ConnectionFactory();
         TarefaService tarefaService = new TarefaServiceImpl(connectionFactory);
         AutenticacaoService autenticacaoService = new AutenticacaoServiceImpl(connectionFactory);
