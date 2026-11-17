@@ -16,13 +16,20 @@ public class AtualizarTarefaCommand implements Command {
             return;
         }
         int id = Integer.parseInt(path.substring(1));
-        Tarefa tarefa = new Gson().fromJson(req.getReader(), Tarefa.class);
-        if (tarefa == null) {
+        DadosTarefa dados = new Gson().fromJson(req.getReader(), DadosTarefa.class);
+        if (dados == null) {
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Informe a tarefa em JSON.");
             return;
         }
         Connection conexao = (Connection) req.getAttribute("conexao");
         TarefaDAO dao = new TarefaDAO(conexao);
+        Tarefa tarefa = dao.buscar(id);
+        if (tarefa == null) {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        tarefa.setTitulo(dados.titulo());
+        tarefa.setDescricao(dados.descricao());
         boolean ok = dao.atualizar(id, tarefa);
         resp.setStatus(ok ? HttpServletResponse.SC_OK : HttpServletResponse.SC_NOT_FOUND);
     }

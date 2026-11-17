@@ -34,6 +34,8 @@ public class FrontController extends HttpServlet {
             }
         } catch (JsonParseException | NumberFormatException e) {
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "JSON ou ID inválido.");
+        } catch (IllegalArgumentException e) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (Exception e) {
             getServletContext().log("Erro ao executar a requisição", e);
             resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
